@@ -1,3 +1,9 @@
+// Project code for MPC-Project
+// Sources:
+// * Udacity lessons
+// * Udacity forums entry: https://discussions.udacity.com/t/do-you-need-to-transform-coordiantes/256483/7
+// * Udacity SDC-slack for project
+
 #include <math.h>
 #include <uWS/uWS.h>
 #include <chrono>
@@ -92,14 +98,52 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          // convert px, py, pstx & ptsy into car coordinates / right handed
+          const int num_elements = ptsx.size();
+          vector<double> ptsx_car(num_elements);
+          vector<double> ptsy_car(num_elements);
+
+          for(int i = 0; i < num_elements; i++) {
+
+              // subtract car origin
+              double x = ptsx[i] - px;
+              double y = ptsy[i] - py;
+
+              // rotate counterclockwise (-psi)
+              ptsx_car[i] = x * cos(-psi) - y * sin(-psi);
+              ptsy_car[i] = x * sin(-psi) + y * cos(-psi);
+
+          }
+
+          //convert from std::vector to Eigen::VectorXd
+          Eigen::VectorXd ptsx_car_ = Eigen::Map<Eigen::VectorXd, \
+                                      Eigen::Unaligned>(ptsx_car.data(), \
+                                      num_elements);
+          Eigen::VectorXd ptsy_car_ = Eigen::Map<Eigen::VectorXd, \
+                                      Eigen::Unaligned>(ptsy_car.data(), \
+                                      num_elements);
+
+          // fit polynomial to the above x and y coordinates
+          auto coeffs = polyfit(ptsx_car_, ptsy_car_, 3);
+
+          // calculate the the cross track error
+          // in car coordinates this simplifies to the neg. constant of the fitted polynomial coeffs[0]
+          double cte = coeffs[0];
+
+          // calculate the orientation error
+          // in car coordiantes the derivative of f simplifies to coeffs[1]
+          double epsi = -atan(coeffs[1]);
+
+          //set state in car coordinates for solver
+          Eigen::VectorXd state(6);
+          state << 0, 0, 0, v, cte, epsi;
+
+          // calculate steering angle and throttle using MPC
+          // remember to divide by deg2rad(25) before you send the steering value back.
+
+          vector<double> res = mpc.Solve(state, coeffs);
+          double steer_value = -1.0 * res[10] / deg2rad(25.);
+          double throttle_value = res[11];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -107,12 +151,17 @@ int main() {
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
+          //Display the MPC predicted trajectory
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+
+          for (int i = 0; i < 5; i++) {
+              mpc_x_vals.push_back(res[i]);
+              mpc_y_vals.push_back(res[i+5]);
+          }
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -124,9 +173,11 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
 
+          next_x_vals = ptsx_car;
+          next_y_vals = ptsy_car;
+
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
@@ -139,7 +190,8 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          // this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(0));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
