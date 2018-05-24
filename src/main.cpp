@@ -3,6 +3,8 @@
 // * Udacity lessons
 // * Udacity forums entry: https://discussions.udacity.com/t/do-you-need-to-transform-coordiantes/256483/7
 // * Udacity SDC-slack for project
+// * Walkthrough for project: https://www.youtube.com/watch?v=bOQuhpz3YfU&feature=youtu.be
+// * github wsteiner: https://github.com/WolfgangSteiner/CarND-MPC-Project
 
 #include <math.h>
 #include <uWS/uWS.h>
@@ -97,6 +99,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          double steering_angle = j[1]["steering_angle"];
+          double throttle = j[1]["throttle"];
 
           // convert px, py, pstx & ptsy into car coordinates / right handed
           const int num_elements = ptsx.size();
@@ -128,7 +132,7 @@ int main() {
 
           // calculate the the cross track error
           // in car coordinates this simplifies to the neg. constant of the fitted polynomial coeffs[0]
-          double cte = coeffs[0];
+          double cte = -coeffs[0];
 
           // calculate the orientation error
           // in car coordiantes the derivative of f simplifies to coeffs[1]
@@ -142,8 +146,8 @@ int main() {
           // remember to divide by deg2rad(25) before you send the steering value back.
 
           vector<double> res = mpc.Solve(state, coeffs);
-          double steer_value = -1.0 * res[10] / deg2rad(25.);
-          double throttle_value = res[11];
+          double steer_value = -1.0 * res[0] / deg2rad(25.);
+          double throttle_value = res[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -157,10 +161,11 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+          const int num_mcp_x_vals = (res.size() - 2) / 2;
 
-          for (int i = 0; i < 5; i++) {
-              mpc_x_vals.push_back(res[i]);
-              mpc_y_vals.push_back(res[i+5]);
+          for (int i = 0; i < num_mcp_x_vals; i++) {
+              mpc_x_vals.push_back(res[i+2]);
+              mpc_y_vals.push_back(res[i+2+num_mcp_x_vals]);
           }
 
           msgJson["mpc_x"] = mpc_x_vals;
@@ -190,8 +195,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          // this_thread::sleep_for(chrono::milliseconds(100));
-          this_thread::sleep_for(chrono::milliseconds(0));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

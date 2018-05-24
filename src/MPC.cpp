@@ -6,7 +6,7 @@
 using CppAD::AD;
 
 // Set the timestep length and duration
-size_t N = 20;
+size_t N = 10;
 double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
@@ -22,8 +22,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Reference velocity for driving around the track
-const double ref_v = 30;
-
+const double ref_v = 40;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -60,20 +59,20 @@ class FG_eval {
 
     // The part of the cost based on the reference state.
     for (int t = 0; t < N; t++) {
-      fg[0] += 10*CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += 10*CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += CppAD::pow(vars[epsi_start + t], 2);
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
     }
 
     // Minimize the use of actuators.
     for (int t = 0; t < N - 1; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t], 2);
-      fg[0] += CppAD::pow(vars[a_start + t], 2);
+      fg[0] += 125 * CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 2 * CppAD::pow(vars[a_start + t], 2);
     }
 
     // Minimize the value gap between sequential actuations.
     for (int t = 0; t < N - 2; t++) {
-      fg[0] += 10 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 
@@ -241,28 +240,42 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
       options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
       constraints_upperbound, fg_eval, solution);
 
-  // Check some of the solution values
+  // check some of the solution values
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
 
-  // Cost
+  // cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-  //Return vector
-
-  //List of optimal trajectory for x for 5 timesteps
+  // return vector
   std::vector<double> res;
-  for(int i=0; i < 5; i++) {
+  double res_delta = 0.0;
+  double res_a = 0.0;
+
+  // calculate mean for actuators to tackle latency problem
+  int n_mean = 3;
+  for (int i = 0; i < n_mean; i++) {
+
+      res_delta += solution.x[delta_start + i] / n_mean;
+      res_a += solution.x[a_start + i] / n_mean;
+
+  }
+
+
+  //Add first steering controls
+  res.push_back(res_delta);
+  res.push_back(res_a);
+
+  //Optimal trajectory for x
+  for(int i=0; i < N-1; i++) {
       res.push_back(solution.x[x_start + 1 + i]);
   }
 
-  //List of optimal trajectory for y for 5 timesteps
-  for(int i=0; i < 5; i++) {
+  //Optimal trajectory for y
+  for(int i=0; i < N-1; i++) {
       res.push_back(solution.x[y_start + 1 + i]);
   }
-  // Add first steering controls
-  res.push_back(solution.x[delta_start]);
-  res.push_back(solution.x[a_start]);
+
 
   // Return the first actuator values.
   return res;
