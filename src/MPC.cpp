@@ -22,7 +22,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Reference velocity for driving around the track
-const double ref_v = 40;
+const double ref_v = 60;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -55,7 +55,8 @@ class FG_eval {
     // Cost is evaluated on three major parts
     // - Reference states
     // - Use of actuators
-    // - Low jumps for actuators
+    // - Gap between sequential actuations
+    // Punish especially use of steering actuator to make sure to have a smooth behaviour
 
     // The part of the cost based on the reference state.
     for (int t = 0; t < N; t++) {
@@ -66,7 +67,7 @@ class FG_eval {
 
     // Minimize the use of actuators.
     for (int t = 0; t < N - 1; t++) {
-      fg[0] += 125 * CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[delta_start + t], 2);
       fg[0] += 2 * CppAD::pow(vars[a_start + t], 2);
     }
 
@@ -261,7 +262,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   }
 
-
   //Add first steering controls
   res.push_back(res_delta);
   res.push_back(res_a);
@@ -275,7 +275,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   for(int i=0; i < N-1; i++) {
       res.push_back(solution.x[y_start + 1 + i]);
   }
-
 
   // Return the first actuator values.
   return res;

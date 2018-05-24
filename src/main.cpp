@@ -99,8 +99,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-          double steering_angle = j[1]["steering_angle"];
-          double throttle = j[1]["throttle"];
+          // double steering_angle = j[1]["steering_angle"];
+          // double throttle = j[1]["throttle"];
 
           // convert px, py, pstx & ptsy into car coordinates / right handed
           const int num_elements = ptsx.size();
@@ -138,7 +138,7 @@ int main() {
           // in car coordiantes the derivative of f simplifies to coeffs[1]
           double epsi = -atan(coeffs[1]);
 
-          //set state in car coordinates for solver
+          //set state in car coordinates as input for solver
           Eigen::VectorXd state(6);
           state << 0, 0, 0, v, cte, epsi;
 
